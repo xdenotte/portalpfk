@@ -37,7 +37,7 @@
 1.  **Клонуйте репозиторій:**
     Відкрийте термінал і клонуйте проєкт з GitHub:
     ```bash
-    git clone [https://github.com/xdenotte/portalpfk.git](https://github.com/xdenotte/portalpfk.git)
+    git clone https://github.com/xdenotte/portalpfk.git
     ```
     Перейдіть до директорії проєкту:
     ```bash
@@ -62,7 +62,7 @@
 4.  **Запустіть додаток:**
     Після встановлення залежностей ви можете запустити додаток:
     ```bash
-    flet run src/main.py  # Або python src/main.py, якщо flet run не працює
+    flet run
     ```
     Застосунок відкриється у вікні на вашому робочому столі.
 
