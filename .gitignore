@@ -172,11 +172,11 @@ dist/
 *.egg-info/
 .env
 venv/
-*.json  # Якщо у вас є конфігураційні файли з секретами, які не повинні бути публічними
+*.json
 
 # Flet specific
 .flet/
 flet_build/
-*.apk # Якщо ви збираєте APK-файли локально
+*.apk 
 *.exe
 *.app
