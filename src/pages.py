@@ -25,27 +25,28 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
     rating_container = ft.Container(content=ft.Column(controls=[loading_indicator()], expand=True), expand=True)
     ispyt_container = ft.Container(content=ft.Column(controls=[loading_indicator()], expand=True), expand=True)
 
-    page.update()
 
     def update_status_message(message, color=ft.Colors.GREEN_700):
         update_status_text.value = message
         update_status_text.color = color
+        page.update() 
 
     async def load_schedule():
         nonlocal schedule_container
         global schedule_cache
         fetched = False
         try:
-            if schedule_cache is None:
+            if schedule_cache is None: 
                 schedule_container.content.controls.clear()
                 schedule_container.content.controls.append(loading_indicator())
-                page.update()
+                page.update() 
+                
                 result = await fetch_schedule_links()
                 if result:
                     schedule_cache = result
                     fetched = True
 
-            schedule_container.content.controls.clear()
+            schedule_container.content.controls.clear() 
 
             if not schedule_cache or not isinstance(schedule_cache, list):
                 schedule_container.content.controls.append(
@@ -68,7 +69,7 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
                 ft.Text(f"Помилка завантаження розкладу: {e}", size=16, color=ft.Colors.RED_ACCENT_700)
             )
         finally:
-            page.update()
+            page.update() 
         return fetched
 
     async def load_rating():
@@ -76,16 +77,17 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
         global rating_cache
         fetched = False
         try:
-            if rating_cache is None:
+            if rating_cache is None: 
                 rating_container.content.controls.clear()
                 rating_container.content.controls.append(loading_indicator())
-                page.update()
+                page.update() 
+
                 result = await fetch_rating_links()
                 if result:
                     rating_cache = result
                     fetched = True
 
-            rating_container.content.controls.clear()
+            rating_container.content.controls.clear() 
 
             if not rating_cache or not isinstance(rating_cache, list):
                 rating_container.content.controls.append(
@@ -115,7 +117,7 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
                 ft.Text(f"Помилка завантаження рейтингів: {e}", size=16, color=ft.Colors.RED_ACCENT_700)
             )
         finally:
-            page.update()
+            page.update() 
         return fetched
 
     async def load_ispyt():
@@ -127,12 +129,13 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
                 ispyt_container.content.controls.clear()
                 ispyt_container.content.controls.append(loading_indicator())
                 page.update()
+
                 result = await fetch_pdf_links()
                 if result:
                     ispyt_cache = result
                     fetched = True
 
-            ispyt_container.content.controls.clear()
+            ispyt_container.content.controls.clear() 
 
             if not ispyt_cache or not isinstance(ispyt_cache, list):
                 ispyt_container.content.controls.append(
@@ -142,7 +145,7 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
                 if ispyt_cache:
                     ispyt_container.content.controls.append(
                         ft.ElevatedButton(
-                            text="Іспити 3-4 курсів(1-2 семестри)",
+                            text="Іспити 3-4 курсів (1-2 семестри)",
                             width=400,
                             height=50,
                             on_click=lambda e, url=ispyt_cache[0]: page.launch_url(url) if url else None
@@ -159,7 +162,7 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
                 ft.Text(f"Помилка завантаження іспитів: {e}", size=16, color=ft.Colors.RED_ACCENT_700)
             )
         finally:
-            page.update()
+            page.update() 
         return fetched
 
     async def load_all_data():
@@ -170,6 +173,7 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
             load_ispyt()
         )
 
+        # Логіка оновлення статусу
         if fetched_schedule or fetched_rating or fetched_ispyt:
             current_time = datetime.datetime.now()
             page.session.set("last_data_update_time", current_time.isoformat())
@@ -182,7 +186,7 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
                     last_updated_time = datetime.datetime.fromisoformat(last_updated_time_str)
                     formatted_time = last_updated_time.strftime("%d.%m.%Y %H:%M")
                     if schedule_cache is not None and rating_cache is not None and ispyt_cache is not None:
-                        update_status_message(f"Дані з кешу оновлено {formatted_time}", color=ft.Colors.BLUE_GREY_400)
+                        update_status_message(f"Дані з кешу. Оновлено: {formatted_time}", color=ft.Colors.BLUE_GREY_400)
                     else:
                         update_status_message(f"Деякі дані не завантажено. Останнє оновлення: {formatted_time}", color=ft.Colors.ORANGE_ACCENT_700)
                 except ValueError:
@@ -190,6 +194,7 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
             else:
                 update_status_message("Не вдалося завантажити дані.", color=ft.Colors.RED_ACCENT_700)
         page.update()
+
 
     async def refresh_data(e):
         global schedule_cache, rating_cache, ispyt_cache
@@ -204,27 +209,28 @@ async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fe
         ispyt_container.content.controls.clear()
         ispyt_container.content.controls.append(loading_indicator())
 
-        page.update()
-        await load_all_data()
+        page.update() 
+        await load_all_data() 
 
     page.run_task(load_all_data)
 
     return ft.Column(
         controls=[
-            ft.Row(
-                controls=[
-                    ft.Text("Сторінки", size=24, weight=ft.FontWeight.BOLD, expand=True),
-                    ft.IconButton(
-                        icon=ft.Icons.REFRESH,
-                        tooltip="Оновити дані",
-                        on_click=refresh_data
-                    )
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-            ),
-            ft.Container(
-                content=update_status_text,
-                padding=ft.padding.only(top=5),
+            ft.Container( 
+                content=ft.Row(
+                    controls=[
+                        update_status_text,
+                        ft.IconButton(
+                            icon=ft.Icons.REFRESH,
+                            tooltip="Оновити дані",
+                            on_click=refresh_data,
+                            icon_size=20
+                        )
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER
+                ),
+                padding=ft.padding.only(top=5, bottom=10),
                 alignment=ft.alignment.center_left
             ),
             ft.ExpansionTile(

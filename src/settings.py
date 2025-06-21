@@ -59,12 +59,6 @@ def settings_page(page: ft.Page):
 
      return ft.Column(
          controls=[
-             ft.Row(
-                 controls=[
-                     ft.Text("Налаштування", size=24, weight=ft.FontWeight.BOLD, expand=True),
-                 ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN 
-             ),
              ft.Divider(),
              theme_selector,
              ft.Divider(),
