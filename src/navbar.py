@@ -23,7 +23,6 @@ def create_navigation_drawer(page: ft.Page) -> ft.NavigationDrawer:
                 selected_icon=ft.Icons.HOME_FILLED,
                 label="Головна",
             ),
-            ft.Divider(thickness=1),
             ft.NavigationDrawerDestination(
                 icon=ft.Icons.BOOKMARK_BORDER,
                 selected_icon=ft.Icons.BOOKMARK,
@@ -34,7 +33,6 @@ def create_navigation_drawer(page: ft.Page) -> ft.NavigationDrawer:
                 selected_icon=ft.Icons.SCHOOL,
                 label="Випускники",
             ),
-            ft.Divider(thickness=1), # Разделитель
             ft.NavigationDrawerDestination(
                 icon=ft.Icons.SETTINGS,
                 selected_icon=ft.Icons.SETTINGS,

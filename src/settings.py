@@ -1,7 +1,7 @@
 import flet as ft
 from settings_utils import load_settings, save_settings
 
- # Функція для зміни теми
+# Функція для зміни теми
 def change_theme(e, page):
      choice = e.control.value
      if choice == "Системна":
@@ -17,7 +17,7 @@ def change_theme(e, page):
 
      page.update()
 
- # Cторінка налаштувань
+# Cторінка налаштувань
 def settings_page(page: ft.Page):
      settings = load_settings()
 
@@ -59,9 +59,9 @@ def settings_page(page: ft.Page):
 
      return ft.Column(
          controls=[
-             ft.Divider(),
+             ft.Container(height=5), 
              theme_selector,
-             ft.Divider(),
+             ft.Container(height=5), 
              about_tile,
          ],
          horizontal_alignment=ft.CrossAxisAlignment.START,
