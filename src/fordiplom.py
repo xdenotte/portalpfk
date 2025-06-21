@@ -90,7 +90,7 @@ def fordiplom(page: ft.Page):
             ft.Divider(height=30, color="transparent"),
             section_title("Куди надсилати роботу:"),
             email_block("123 «Комп’ютерна інженерія»", "it.plagiat@pk-nuk.com.ua", "it.plagiat@pk-nuk.com.ua"),
-            email_block("000 «XXX»", "xxxxxxx@pk-nuk.com.ua", "xxxxxxx@pk-nuk.com.ua"),
+            email_block("133 «Галузеве машинобудування»", "gm.plagiat@pk-nuk.com.ua", "gm.plagiat@pk-nuk.com.ua"),
 
             ft.Divider(height=30, color="transparent"),
             ft.Card(
