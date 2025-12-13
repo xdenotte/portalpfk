@@ -20,9 +20,9 @@ async def fetch_news():
 
     soup = BeautifulSoup(response.text, "html.parser")
     all_news_items = soup.find_all("article", class_="post-each-blog")
-    # Беремо тільки останні 5 новин, впливає на кількість відображення в головній сторінці (максимально 10)
+    # Беремо останні 10 новин, впливає на кількість відображення в головній сторінці (максимально 10)
     # Впливає на швидкість завантажування
-    latest_news_items = all_news_items[:5]
+    latest_news_items = all_news_items[:10]
     news = []
 
     # Патерн для пошуку дати у форматі ДД.ММ.РРРР
@@ -81,9 +81,20 @@ async def fetch_schedule_links():
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
+
+    # контейнер не змінився
     container = soup.find("div", class_="elementor-widget-container")
-    ul_tag = container.find("ul") if container else None
-    return [a.get("href") for li in ul_tag.find_all("li") if (a := li.find("a")) and a.get("href")] if ul_tag else []
+    if not container:
+        return []
+
+    # Функція аналогічна іспитам
+    links = []
+    for a in container.find_all("a", href=True):
+        href = a.get("href")
+        if href and href.lower().endswith(".pdf"):
+            links.append(href)
+
+    return links
 
 # Функція для отримання рейтингів
 async def fetch_rating_links():
@@ -97,13 +108,12 @@ async def fetch_rating_links():
 
     soup = BeautifulSoup(response.text, "html.parser")
     container = soup.find("div", class_="elementor-widget-container")
-    p_tags = container.find_all("p") if container else []
+    a_tags = container.find_all("a") if container else []
 
     result = []
-    for p in p_tags:
-        a_tag = p.find("a")
-        text = p.get_text(strip=True)
-        link = a_tag.get("href") if a_tag else None
+    for a in a_tags:
+        link = a.get("href")
+        text = a.get_text(strip=True)
         result.append({"link": link, "text": text})
 
     return result

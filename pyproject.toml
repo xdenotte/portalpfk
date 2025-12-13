@@ -1,6 +1,6 @@
 [project]
 name = "Portal.PFK.NUK"
-version = "1.0.0"
+version = "1.0.1"
 description = "Утиліта для легкого доступу до студентських сервісів"
 readme = "README.md"
 requires-python = ">=3.9"
