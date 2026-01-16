@@ -81,20 +81,24 @@ async def fetch_schedule_links():
         return []
 
     soup = BeautifulSoup(response.text, "html.parser")
-
-    # контейнер не змінився
+    
+    # Шукаємо всі посилання у відповідному контейнері
     container = soup.find("div", class_="elementor-widget-container")
     if not container:
         return []
 
-    # Функція аналогічна іспитам
-    links = []
+    result = []
     for a in container.find_all("a", href=True):
         href = a.get("href")
+        text = a.get_text(strip=True)
+        # Додаємо лише якщо це посилання на PDF
         if href and href.lower().endswith(".pdf"):
-            links.append(href)
+            # Якщо тексту на кнопці немає, даємо назву за замовчуванням
+            if not text:
+                text = "Розклад (PDF)"
+            result.append({"link": href, "text": text})
 
-    return links
+    return result
 
 # Функція для отримання рейтингів
 async def fetch_rating_links():

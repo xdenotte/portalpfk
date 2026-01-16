@@ -7,7 +7,7 @@ cached_news = None
 # --- Компонент: індикатор завантаження ---
 def loading_indicator():
     return ft.Container(
-        alignment=ft.alignment.center,
+        alignment=ft.Alignment.CENTER,
         expand=True,
         content=ft.Column(
             [
@@ -48,13 +48,12 @@ def create_news_card(item: dict) -> ft.Control:
             ft.Container(
                 content=ft.Image(
                     src=item["image_url"],
-                    fit=ft.ImageFit.COVER,
                     error_content=ft.Text("Немає фото", color=ft.Colors.RED_ACCENT_700),
-                    border_radius=ft.border_radius.all(5),
+                    border_radius=ft.BorderRadius.all(5),
                 ),
                 expand=True,
-                alignment=ft.alignment.center,
-                padding=ft.padding.only(bottom=5),
+                alignment=ft.Alignment.CENTER,
+                padding=ft.Padding.only(bottom=5),
             )
         )
 
@@ -95,12 +94,12 @@ def create_news_card(item: dict) -> ft.Control:
     if item.get("link"):
         content.controls.append(
             ft.Container(
-                content=ft.ElevatedButton(
-                    text="Читати далі",
+                content=ft.TextButton(
+                    content=ft.Text("Читати далі"),
                     url=item["link"],
                     icon=ft.Icons.ARROW_FORWARD,
                 ),
-                alignment=ft.alignment.bottom_right,
+                alignment=ft.Alignment.CENTER_RIGHT,
                 expand=True,
             )
         )
@@ -112,7 +111,7 @@ def create_news_card(item: dict) -> ft.Control:
             expand=True,
         ),
         elevation=4,
-        margin=ft.margin.symmetric(vertical=8),
+        margin=ft.Margin.symmetric(vertical=8),
     )
 
 

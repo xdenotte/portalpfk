@@ -2,17 +2,31 @@ import flet as ft
 
 def create_navigation_drawer(page: ft.Page) -> ft.NavigationDrawer:
 
-    def update_nav(e):
+    # 1. Робимо функцію асинхронною
+    async def update_nav(e):
         selected_index = e.control.selected_index
-        if selected_index == 0:
-            page.go("/0")
-        elif selected_index == 1:
-            page.go("/1")
-        elif selected_index == 2:
-            page.go("/2")
-        elif selected_index == 3:
-            page.go("/settings")
-        page.close(e.control)
+        
+        # Визначаємо маршрут на основі індексу
+        routes = {
+            0: "/0",
+            1: "/1",
+            2: "/2",
+            3: "/settings"
+        }
+        
+        target_route = routes.get(selected_index)
+        
+        if target_route:
+            # 2. Використовуємо push_route замість go
+            await page.push_route(target_route)
+            
+        # 3. Закриваємо Drawer асинхронно через метод сторінки
+        try:
+            await page.close_drawer()
+        except Exception:
+            # Якщо метод не підтримується, використовуємо властивість
+            e.control.open = False
+            page.update()
 
     navigation_drawer = ft.NavigationDrawer(
         on_change=update_nav,

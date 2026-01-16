@@ -42,7 +42,7 @@ def fordiplom(page: ft.Page):
                                 icon=ft.Icons.LAUNCH,
                                 icon_color=ft.Colors.BLUE_700,
                                 tooltip="Відкрити у поштовому клієнті",
-                                on_click=lambda e: page.launch_url(f"mailto:{url}"),
+                                on_click=lambda e: page.run_task(ft.UrlLauncher().launch_url, f"mailto:{url}"),
                                 icon_size=20,
                                 style=ft.ButtonStyle(
                                     shape=ft.CircleBorder(),

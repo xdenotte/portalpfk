@@ -12,20 +12,14 @@ greeting_container: ft.Text = None
 navigation_drawer: ft.NavigationDrawer = None
 page_content_container: ft.Container = None
 
-def main(page: ft.Page) -> None:
+async def main(page: ft.Page) -> None:
     global page_content_container, greeting_container, navigation_drawer
 
     page.title = "Портал ВСП ПФК НУК"
-    page.fonts = {
-        "Noto Color Emoji": "fonts/NotoColorEmoji.ttf",
-        "San Francisco Bold": "fonts/San Francisco Bold.ttf",
-        "Open Sans": "/fonts/OpenSans.ttf"
-    }
 
     page.extend_body = True
     page.padding = 0
 
-    # Завантаження налаштувань теми
     theme_mode = load_settings().get("theme_mode", "Системна")
     page.theme_mode = {
         "Системна": ft.ThemeMode.SYSTEM,
@@ -36,13 +30,11 @@ def main(page: ft.Page) -> None:
     navigation_drawer = create_navigation_drawer(page)
     page.drawer = navigation_drawer
 
-    page.appbar = None
-
     greeting_container = ft.Text(get_greeting(), size=32, visible=False)
 
     page_content_container = ft.Container(
         expand=True,
-        padding=ft.padding.only(left=10, right=10, top=0)
+        padding=ft.Padding(left=10, right=10, top=0, bottom=0)
     )
 
     page.add(
@@ -56,9 +48,14 @@ def main(page: ft.Page) -> None:
         )
     )
 
+    async def open_drawer_clicked(e):
+        await page.show_drawer()
+
     async def load_page(route: str) -> None:
-        if page.drawer.open:
-            page.close(page.drawer)
+        try:
+            await page.close_drawer()
+        except Exception:
+            pass
 
         page_content_container.content = ft.Column(
             [ft.ProgressRing()],
@@ -71,24 +68,19 @@ def main(page: ft.Page) -> None:
         header_controls = [
             ft.IconButton(
                 icon=ft.Icons.MENU,
-                on_click=lambda e: page.open(navigation_drawer),
+                on_click=open_drawer_clicked,
                 icon_size=24, 
                 tooltip="Відкрити меню"
             )
         ]
 
-        current_page_title = ""
-        if route == "/0":
-            current_page_title = "Головна"
-        elif route == "/1":
-            current_page_title = "Сторінки"
-        elif route == "/2":
-            current_page_title = "Випускники"
-        elif route == "/settings":
-            current_page_title = "Налаштування"
-        else:
-            current_page_title = "Невідома сторінка"
-
+        titles = {
+            "/0": "Головна",
+            "/1": "Сторінки",
+            "/2": "Випускники",
+            "/settings": "Налаштування"
+        }
+        current_page_title = titles.get(route, "Невідома сторінка")
         header_controls.append(ft.Text(current_page_title, size=24, weight=ft.FontWeight.BOLD))
 
         page_header = ft.Row(
@@ -98,19 +90,13 @@ def main(page: ft.Page) -> None:
             spacing=5
         )
 
-        page_content_wrapper = ft.Column(
-            controls=[],
-            expand=True,
-            spacing=0,
-        )
-
+        page_content_wrapper = ft.Column(expand=True, spacing=0)
         page_content_wrapper.controls.append(page_header)
         page_content_wrapper.controls.append(ft.Divider())
-        # page_content_wrapper.controls.append(ft.Container(height=5)) # Якщо потрібно
 
         if route == "/0":
-            page_content_wrapper.controls.append(greeting_container)
             greeting_container.visible = True
+            page_content_wrapper.controls.append(greeting_container)
             page_content_wrapper.controls.append(home_page(page, fetch_news))
         elif route == "/1":
             greeting_container.visible = False
@@ -123,9 +109,7 @@ def main(page: ft.Page) -> None:
             page_content_wrapper.controls.append(settings_page(page))
         else:
             greeting_container.visible = False
-            page_content_wrapper.controls.append(
-                ft.Text("Сторінки не існує", size=20, color="red")
-            )
+            page_content_wrapper.controls.append(ft.Text("Сторінки не існує", size=20, color="red"))
         
         page_content_container.content = page_content_wrapper
         page.update()
@@ -134,6 +118,7 @@ def main(page: ft.Page) -> None:
         await load_page(page.route)
 
     page.on_route_change = route_change
-    page.go("/0")
+    
+    await page.push_route("/0")
 
-ft.app(target=main)
+ft.run(main)
