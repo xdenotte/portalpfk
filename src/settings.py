@@ -42,7 +42,7 @@ def settings_page(page: ft.Page):
          controls=[
              ft.ListTile(
                  title=ft.Text("Версія програми"),
-                 subtitle=ft.Text("1.1.0"),
+                 subtitle=ft.Text("1.2.0"),
                  leading=ft.Icon(ft.Icons.BUG_REPORT),
              ),
              ft.ListTile(

@@ -1,2 +1,4 @@
 *.nix
 *.json
+build
+**/__pycache__/

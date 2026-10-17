@@ -9,13 +9,13 @@ ispyt_cache = None
 
 async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fetch_pdf_links):
     global schedule_cache, rating_cache, ispyt_cache
-
+    url_launcher = ft.UrlLauncher()
     update_status_text = ft.Text("", size=12, color=ft.Colors.GREEN_700)
 
     async def open_url(e):
         url = e.control.data
         if url:
-            await page.launch_url(url)
+            await url_launcher.launch_url(url)
 
     def loading_indicator():
         return ft.Column(
