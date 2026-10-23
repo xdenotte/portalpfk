@@ -1,18 +1,39 @@
-import flet as ft
 import asyncio
+import time
 
-# Кеш новин
-cached_news = None
+import flet as ft
 
-# --- Компонент: індикатор завантаження ---
-def loading_indicator():
+CACHE_TTL = 300  # секунд, після цього дані вважаються застарілими
+PULL_THRESHOLD = 80  # пікселів, на скільки потрібно потягнути вниз (висота кружка)
+
+# Кеш новин на рівні модуля
+_cache: dict = {"data": None, "ts": 0.0}
+_lock = asyncio.Lock()
+
+
+def _text(value: str, **kwargs) -> ft.Text:
+    return ft.Text(value, **kwargs)
+
+
+def _vertical_delta(e) -> float:
+    """Зміна по вертикалі в одній події перетягування."""
+    value = getattr(e, "primary_delta", None)
+    if value is not None:
+        return float(value)
+    local = getattr(e, "local_delta", None)
+    return float(getattr(local, "y", 0) or 0)
+
+
+# --- Компоненти ---
+
+def loading_indicator() -> ft.Control:
     return ft.Container(
+        height=300,
         alignment=ft.Alignment.CENTER,
-        expand=True,
         content=ft.Column(
             [
                 ft.ProgressRing(width=50, height=50),
-                ft.Text("Завантаження новин...", size=16, font_family="Open Sans"),
+                _text("Завантаження новин...", size=16),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -20,36 +41,30 @@ def loading_indicator():
     )
 
 
-# --- Компонент: повідомлення про помилку ---
-def show_error_message(message: str) -> ft.Control:
-    return ft.Column(
-        [
-            ft.Text(
-                message,
-                size=18,
-                color=ft.Colors.RED_ACCENT_700,
-                text_align=ft.TextAlign.CENTER,
-                font_family="Open Sans",
-            )
-        ],
-        alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        expand=True,
+def error_message(message: str) -> ft.Control:
+    return ft.Container(
+        height=300,
+        alignment=ft.Alignment.CENTER,
+        content=_text(
+            message,
+            size=18,
+            color=ft.Colors.RED_ACCENT_700,
+            text_align=ft.TextAlign.CENTER,
+        ),
     )
 
 
-# --- Компонент: одна картка новини ---
 def create_news_card(item: dict) -> ft.Control:
-    content = ft.Column(spacing=10, expand=True)
+    controls: list[ft.Control] = []
 
-    # Зображення
     if item.get("image_url"):
-        content.controls.append(
+        controls.append(
             ft.Container(
                 content=ft.Image(
                     src=item["image_url"],
-                    error_content=ft.Text("Немає фото", color=ft.Colors.RED_ACCENT_700),
+                    fit=ft.BoxFit.COVER,
                     border_radius=ft.BorderRadius.all(5),
+                    error_content=ft.Text("Немає фото", color=ft.Colors.RED_ACCENT_700),
                 ),
                 expand=True,
                 alignment=ft.Alignment.CENTER,
@@ -57,119 +72,241 @@ def create_news_card(item: dict) -> ft.Control:
             )
         )
 
-    # Заголовок
-    content.controls.append(
-        ft.Text(
+    controls.append(
+        _text(
             item.get("title", "Немає заголовка"),
-            font_family="Open Sans",
             size=18,
             weight=ft.FontWeight.BOLD,
             max_lines=2,
             overflow=ft.TextOverflow.ELLIPSIS,
         )
     )
-
-    # Дата
-    content.controls.append(
-        ft.Text(
-            item.get("date", "Немає дати"),
-            font_family="Open Sans",
-            size=14,
-            color=ft.Colors.BLUE_ACCENT_700,
-        )
+    controls.append(
+        _text(item.get("date", "Немає дати"), size=14, color=ft.Colors.BLUE_ACCENT_700)
     )
-
-    # Уривок тексту
-    content.controls.append(
-        ft.Text(
+    controls.append(
+        _text(
             item.get("content", "Немає тексту новини."),
-            font_family="Open Sans",
             size=14,
             max_lines=3,
             overflow=ft.TextOverflow.ELLIPSIS,
         )
     )
 
-    # Кнопка "Читати далі"
     if item.get("link"):
-        content.controls.append(
+        controls.append(
             ft.Container(
+                alignment=ft.Alignment.CENTER_RIGHT,
                 content=ft.TextButton(
                     content=ft.Text("Читати далі"),
-                    url=item["link"],
                     icon=ft.Icons.ARROW_FORWARD,
+                    url=item["link"],
                 ),
-                alignment=ft.Alignment.CENTER_RIGHT,
-                expand=True,
             )
         )
 
     return ft.Card(
-        content=ft.Container(
-            content=content,
-            padding=15,
-            expand=True,
-        ),
         elevation=4,
         margin=ft.Margin.symmetric(vertical=8),
+        content=ft.Container(
+            padding=15,
+            content=ft.Column(controls, spacing=10),
+        ),
     )
 
 
-# --- Основна функція домашньої сторінки ---
+# --- Головна сторінка ---
+
 def home_page(page: ft.Page, fetch_news) -> ft.Control:
-    global cached_news
+    # Заголовок зафіксований, не рухається при прокручуванні
+    header = ft.Container(
+        padding=ft.Padding.only(left=12, top=8, bottom=4),
+        content=_text(
+            "Останні новини:",
+            size=24,
+            weight=ft.FontWeight.BOLD,
+        ),
+    )
 
-    # Колонка, яка буде повертатись
-    home_content_column = ft.Column(expand=True, scroll="auto")
+    # --- Кружок, який з'являється над першою новиною ---
+    pull_ring = ft.ProgressRing(
+        width=32,
+        height=32,
+        stroke_width=3,
+        value=0,
+    )
 
-    # --- Функція для оновлення UI ---
-    def update_home_ui(news_data):
-        home_content_column.controls.clear()
+    pull_check = ft.Icon(
+        icon=ft.Icons.CHECK,
+        size=32,
+        color=ft.Colors.GREEN,
+    )
 
-        home_content_column.controls.append(
-            ft.Text(
-                "Останні новини:",
-                size=24,
-                weight=ft.FontWeight.BOLD,
-                text_align=ft.TextAlign.CENTER,
-                font_family="Open Sans",
-                expand=True,
+    pull_box = ft.Container(
+        height=0,
+        alignment=ft.Alignment.CENTER,
+        content=pull_ring,
+    )
+
+    pull: dict = {
+        "distance": 0.0,
+        "loading": False,
+        "armed": False,
+    }
+
+    def set_pull_visual(distance: float) -> None:
+        """Показує прогрес або галочку, коли поріг досягнуто."""
+        progress = min(distance / PULL_THRESHOLD, 1.0)
+        pull_box.height = PULL_THRESHOLD * progress
+
+        if distance >= PULL_THRESHOLD:
+            pull_box.content = pull_check
+        else:
+            pull_box.content = pull_ring
+            pull_ring.value = progress
+
+        page.update()
+
+    def set_loading_visual(active: bool) -> None:
+        """Показує індикатор під час завантаження."""
+        if active:
+            pull_box.height = PULL_THRESHOLD
+            pull_box.content = pull_ring
+            pull_ring.value = None
+        else:
+            pull_box.height = 0
+            pull_ring.value = 0
+            pull_box.content = pull_ring
+
+        page.update()
+
+    # --- Список новин ---
+    news_list = ft.ListView(
+        expand=True,
+        spacing=0,
+        padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+    )
+
+    def render(items: list | None) -> None:
+        news_list.controls.clear()
+        news_list.controls.append(pull_box)
+
+        if items:
+            first, *rest = items
+
+            news_list.controls.append(create_news_card(first))
+            news_list.controls.extend(create_news_card(i) for i in rest)
+        else:
+            news_list.controls.append(
+                error_message(
+                    "Не вдалося завантажити новини. "
+                    "Перевірте підключення або спробуйте пізніше."
+                )
             )
+
+        page.update()
+
+    def show_full_loading() -> None:
+        """Перше завантаження, коли кешу ще немає: спінер по центру списку."""
+        news_list.controls.clear()
+        news_list.controls.append(loading_indicator())
+        page.update()
+
+    def is_fresh() -> bool:
+        return (
+            _cache["data"] is not None
+            and time.monotonic() - _cache["ts"] < CACHE_TTL
         )
 
-        if news_data and isinstance(news_data, list):
-            for item in news_data:
-                home_content_column.controls.append(create_news_card(item))
-        else:
-            error_message = "Не вдалося завантажити новини. Перевірте підключення або спробуйте пізніше."
-            home_content_column.controls.append(show_error_message(error_message))
+    async def load(force: bool = False) -> None:
+        if not force and is_fresh():
+            render(_cache["data"])
+            return
 
-        page.update()
+        async with _lock:
+            had_cache = _cache["data"] is not None
+            pull["loading"] = True
 
-    # --- Асинхронне завантаження новин ---
-    async def load_news_task():
-        global cached_news
+            if had_cache:
+                # Новини зникають, над порожнім списком крутиться кружок
+                news_list.controls.clear()
+                news_list.controls.append(pull_box)
+                set_loading_visual(True)
+            else:
+                show_full_loading()
 
-        # Показуємо індикатор
-        home_content_column.controls.clear()
-        home_content_column.controls.append(loading_indicator())
-        page.update()
+            try:
+                data = await asyncio.wait_for(fetch_news(), timeout=15)
+            except Exception as e: # noqa: BLE001
+                print(f"[ERROR] Не вдалося отримати новини: {e}")
+                data = None
 
-        await asyncio.sleep(0.5)
+            if data is not None:
+                _cache["data"] = data
+                _cache["ts"] = time.monotonic()
 
-        try:
-            fetched_data = await fetch_news()
-            cached_news = fetched_data
-        except Exception as e:
-            print(f"[ERROR] Не вдалося отримати новини: {e}")
-            cached_news = []
+            pull["loading"] = False
 
-        update_home_ui(cached_news)
+            # Ховаємо кружок до того, як render знову додасть його в список
+            set_pull_visual(0)
 
-    # --- Основна логіка завантаження/виводу ---
-    if cached_news:
-        update_home_ui(cached_news)
-    else:
-        page.run_task(load_news_task)
+        render(_cache["data"])
 
-    return home_content_column
+    async def on_news_scroll(e: ft.OnScrollEvent) -> None:
+        if pull["loading"]:
+            return
+
+        if e.event_type == ft.ScrollType.START:
+            pull["distance"] = 0.0
+            pull["armed"] = e.extent_before <= 1.0
+            set_pull_visual(0)
+            return
+
+        if e.event_type == ft.ScrollType.OVERSCROLL:
+            overscroll = float(e.overscroll or 0)
+
+            if pull["armed"] and overscroll < 0:
+                pull["distance"] = min(
+                    PULL_THRESHOLD,
+                    pull["distance"] + abs(overscroll),
+                )
+                set_pull_visual(pull["distance"])
+
+            elif overscroll > 0:
+                pull["distance"] = 0.0
+                pull["armed"] = False
+                set_pull_visual(0)
+
+            return
+
+        if e.event_type == ft.ScrollType.END:
+            should_refresh = (
+                pull["armed"]
+                and pull["distance"] >= PULL_THRESHOLD
+                and not _lock.locked()
+            )
+
+            pull["distance"] = 0.0
+            pull["armed"] = False
+
+            if should_refresh:
+                await load(force=True)
+            else:
+                set_pull_visual(0)
+
+    news_list.on_scroll = on_news_scroll
+
+    # Миттєвий показ кешу
+    if _cache["data"] is not None:
+        render(_cache["data"])
+
+    page.run_task(load)
+
+    # Заголовок фіксований зверху, список прокручується під ним
+    return ft.Column(
+        [
+            header,
+            news_list,
+        ],
+        expand=True,
+    )

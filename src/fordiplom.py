@@ -1,5 +1,7 @@
-import flet as ft
 from datetime import datetime
+
+import flet as ft
+
 
 def fordiplom(page: ft.Page):
     page.vertical_alignment = ft.MainAxisAlignment.START
@@ -36,7 +38,7 @@ def fordiplom(page: ft.Page):
                                 color=ft.Colors.BLUE_700,
                                 selectable=True,
                                 expand=True,
-                                overflow=ft.TextOverflow.ELLIPSIS, 
+                                overflow=ft.TextOverflow.ELLIPSIS,
                             ),
                             ft.IconButton(
                                 icon=ft.Icons.LAUNCH,

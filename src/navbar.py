@@ -1,57 +1,35 @@
 import flet as ft
 
+# (маршрут, підпис, іконка, іконка у вибраному стані)
+DESTINATIONS = (
+    ("/0", "Головна", ft.Icons.HOME, ft.Icons.HOME_FILLED),
+    ("/1", "Сторінки", ft.Icons.BOOKMARK_BORDER, ft.Icons.BOOKMARK),
+    ("/2", "Випускники", ft.Icons.SCHOOL, ft.Icons.SCHOOL),
+    ("/settings", "Налаштування", ft.Icons.SETTINGS, ft.Icons.SETTINGS),
+)
+
+ROUTES = tuple(route for route, *_ in DESTINATIONS)
+
+
 def create_navigation_drawer(page: ft.Page) -> ft.NavigationDrawer:
+    async def on_change(e) -> None:
+        index = e.control.selected_index
+        if index is not None and 0 <= index < len(ROUTES):
+            await page.push_route(ROUTES[index])
 
-    # 1. Робимо функцію асинхронною
-    async def update_nav(e):
-        selected_index = e.control.selected_index
-        
-        # Визначаємо маршрут на основі індексу
-        routes = {
-            0: "/0",
-            1: "/1",
-            2: "/2",
-            3: "/settings"
-        }
-        
-        target_route = routes.get(selected_index)
-        
-        if target_route:
-            # 2. Використовуємо push_route замість go
-            await page.push_route(target_route)
-            
-        # 3. Закриваємо Drawer асинхронно через метод сторінки
-        try:
-            await page.close_drawer()
-        except Exception:
-            # Якщо метод не підтримується, використовуємо властивість
-            e.control.open = False
-            page.update()
+        await page.close_drawer()
 
-    navigation_drawer = ft.NavigationDrawer(
-        on_change=update_nav,
+    return ft.NavigationDrawer(
+        on_change=on_change,
         controls=[
             ft.Container(height=12),
-            ft.NavigationDrawerDestination(
-                icon=ft.Icons.HOME,
-                selected_icon=ft.Icons.HOME_FILLED,
-                label="Головна",
-            ),
-            ft.NavigationDrawerDestination(
-                icon=ft.Icons.BOOKMARK_BORDER,
-                selected_icon=ft.Icons.BOOKMARK,
-                label="Сторінки",
-            ),
-            ft.NavigationDrawerDestination(
-                icon=ft.Icons.SCHOOL,
-                selected_icon=ft.Icons.SCHOOL,
-                label="Випускники",
-            ),
-            ft.NavigationDrawerDestination(
-                icon=ft.Icons.SETTINGS,
-                selected_icon=ft.Icons.SETTINGS,
-                label="Налаштування",
+            *(
+                ft.NavigationDrawerDestination(
+                    icon=icon,
+                    selected_icon=selected_icon,
+                    label=label,
+                )
+                for _, label, icon, selected_icon in DESTINATIONS
             ),
         ],
     )
-    return navigation_drawer

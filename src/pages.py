@@ -1,178 +1,161 @@
-import flet as ft
-import datetime
 import asyncio
+import datetime
+import time
 
-# Кеш-пам'ять (глобальна)
-schedule_cache = None
-rating_cache = None
-ispyt_cache = None
+import flet as ft
+
+CACHE_TTL = 3600  # секунд, після цього дані оновлюються при відкритті сторінки
+REQUEST_TIMEOUT = 15
+
+_cache: dict[str, dict] = {}
+_lock = asyncio.Lock()
+
+
+def _is_fresh(key: str) -> bool:
+    entry = _cache.get(key)
+    return bool(entry) and time.monotonic() - entry["ts"] < CACHE_TTL
+
+
+def _now() -> str:
+    return datetime.datetime.now().strftime("%H:%M")
+
+
+def _loading() -> ft.Control:
+    return ft.Container(
+        padding=20,
+        alignment=ft.Alignment.CENTER,
+        content=ft.Column(
+            [ft.ProgressRing(), ft.Text("Завантаження...", size=16)],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+    )
+
 
 async def pages_page(page: ft.Page, fetch_schedule_links, fetch_rating_links, fetch_pdf_links):
-    global schedule_cache, rating_cache, ispyt_cache
     url_launcher = ft.UrlLauncher()
-    update_status_text = ft.Text("", size=12, color=ft.Colors.GREEN_700)
+    status = ft.Text("", size=12, color=ft.Colors.GREEN_700)
 
     async def open_url(e):
-        url = e.control.data
-        if url:
-            await url_launcher.launch_url(url)
+        if e.control.data:
+            await url_launcher.launch_url(e.control.data)
 
-    def loading_indicator():
-        return ft.Column(
-            controls=[
-                ft.ProgressRing(visible=True),
-                ft.Text("Завантаження...", size=16)
-            ],
-            horizontal_alignment="center"
-        )
+    async def ispyt_items():
+        # Поки показуємо лише перший PDF, як і раніше
+        links = await fetch_pdf_links()
+        if not links:
+            return []
+        return [{"text": "Іспити 3-4 курсів", "link": links[0]}]
 
-    schedule_container = ft.Container(content=ft.Column(controls=[loading_indicator()], expand=True), expand=True)
-    rating_container = ft.Container(content=ft.Column(controls=[loading_indicator()], expand=True), expand=True)
-    ispyt_container = ft.Container(content=ft.Column(controls=[loading_indicator()], expand=True), expand=True)
+    # (ключ кешу, заголовок секції, функція завантаження)
+    sections = [
+        ("schedule", "Розклад занять", fetch_schedule_links),
+        ("rating", "Рейтинги студентів", fetch_rating_links),
+        ("ispyt", "Розклад іспитів", ispyt_items),
+    ]
 
-    def update_status_message(message, color=ft.Colors.GREEN_700):
-        update_status_text.value = message
-        update_status_text.color = color
-        page.update() 
+    bodies = {
+        key: ft.Column([_loading()], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        for key, _, _ in sections
+    }
 
-    async def load_schedule():
-        nonlocal schedule_container
-        global schedule_cache
-        try:
-            if schedule_cache is None: 
-                # Якщо кешу немає — завантажуємо
-                result = await fetch_schedule_links()
-                if result:
-                    schedule_cache = result
-            
-            # Якщо кеш є (або щойно завантажився)
-            if schedule_cache:
-                schedule_container.content.controls.clear() 
-                for item in schedule_cache:
-                    schedule_container.content.controls.append(
-                        ft.Button(
-                            content=ft.Text(item["text"]),
-                            width=400,
-                            height=50,
-                            data=item["link"],
-                            on_click=open_url
-                        )
-                    )
-                page.update()
-                return True # Дані успішно відображені (з мережі або кешу)
-            
-            schedule_container.content.controls.append(ft.Text("Дані відсутні."))
-            return False
-        except Exception as e:
-            print(f"Помилка розкладу: {e}")
-            return False
-
-    async def load_rating():
-        nonlocal rating_container
-        global rating_cache
-        try:
-            if rating_cache is None:
-                result = await fetch_rating_links()
-                if result:
-                    rating_cache = result
-
-            if rating_cache:
-                rating_container.content.controls.clear()
-                for i, item in enumerate(rating_cache):
-                    text = item.get("text", f"Елемент {i+1}") if isinstance(item, dict) else f"Елемент {i+1}"
-                    link = item.get("link") if isinstance(item, dict) else item
-                    rating_container.content.controls.append(
-                        ft.Button(content=ft.Text(text), height=50, width=400, data=link, on_click=open_url)
-                    )
-                page.update()
-                return True
-            return False
-        except Exception as e:
-            print(f"Помилка рейтингу: {e}")
-            return False
-
-    async def load_ispyt():
-        nonlocal ispyt_container
-        global ispyt_cache
-        try:
-            if ispyt_cache is None:
-                result = await fetch_pdf_links()
-                if result:
-                    ispyt_cache = result
-
-            if ispyt_cache:
-                ispyt_container.content.controls.clear()
-                ispyt_container.content.controls.append(
-                    ft.Button(content=ft.Text("Іспити 3-4 курсів"), width=400, height=50, data=ispyt_cache[0], on_click=open_url)
+    def render(key: str, items: list | None) -> None:
+        body = bodies[key]
+        body.controls.clear()
+        if items:
+            body.controls.extend(
+                ft.Button(
+                    content=ft.Text(item["text"]),
+                    width=400,
+                    height=50,
+                    data=item["link"],
+                    on_click=open_url,
                 )
-                page.update()
-                return True
-            return False
-        except Exception as e:
-            print(f"Помилка іспитів: {e}")
-            return False
-
-    async def load_all_data():
-        # Перевіряємо, чи ми вперше завантажуємо, чи дані вже в кеші
-        is_cached = all([schedule_cache, rating_cache, ispyt_cache])
-        
-        if not is_cached:
-            update_status_message("Завантаження даних...", color=ft.Colors.BLUE_ACCENT_700)
-        
-        results = await asyncio.gather(
-            load_schedule(),
-            load_rating(),
-            load_ispyt()
-        )
-
-        current_time = datetime.datetime.now().strftime("%H:%M")
-        
-        if all(results):
-            msg = f"Дані актуальні ({current_time})" if is_cached else f"Всі дані оновлено о {current_time}"
-            update_status_message(msg, color=ft.Colors.GREEN_700)
-        elif any(results):
-            update_status_message(f"Частково завантажено о {current_time}", color=ft.Colors.ORANGE_ACCENT_700)
+                for item in items
+            )
         else:
-            update_status_message("Не вдалося отримати дані", color=ft.Colors.RED_ACCENT_700)
+            body.controls.append(ft.Text("Дані відсутні."))
 
-    async def refresh_data(e):
-        global schedule_cache, rating_cache, ispyt_cache
-        schedule_cache = rating_cache = ispyt_cache = None
-        # Повертаємо індикатори завантаження
-        schedule_container.content = loading_indicator()
-        rating_container.content = loading_indicator()
-        ispyt_container.content = loading_indicator()
-        page.update()
-        await load_all_data()
+    async def load_section(key: str, fetch, force: bool) -> bool:
+        """Повертає True, якщо отримано свіжі дані."""
+        if not force and _is_fresh(key):
+            render(key, _cache[key]["data"])
+            return True
 
-    # Запускаємо через run_task
-    page.run_task(load_all_data)
+        try:
+            data = await asyncio.wait_for(fetch(), timeout=REQUEST_TIMEOUT)
+        except RuntimeError as e:
+            print(f"Помилка ({key}): {e}")
+            data = None
+
+        if data:
+            _cache[key] = {"data": data, "ts": time.monotonic()}
+            render(key, data)
+            return True
+
+        # Оновити не вдалося: лишаємо старі дані, якщо вони є
+        render(key, _cache.get(key, {}).get("data"))
+        return False
+
+    def set_status(message: str, color) -> None:
+        status.value = message
+        status.color = color
+
+    async def load_all(force: bool = False) -> None:
+        async with _lock:
+            was_cached = all(_is_fresh(key) for key, _, _ in sections)
+
+            # Показуємо спінери тільки там, де даних немає або потрібне оновлення
+            for key, _, _ in sections:
+                if force or not _is_fresh(key):
+                    bodies[key].controls = [_loading()]
+
+            if force or not was_cached:
+                set_status("Завантаження даних...", ft.Colors.BLUE_ACCENT_700)
+            page.update()
+
+            results = await asyncio.gather(
+                *(load_section(key, fetch, force) for key, _, fetch in sections)
+            )
+
+            current_time = _now()
+            if all(results):
+                if was_cached and not force:
+                    set_status(f"Дані актуальні ({current_time})", ft.Colors.GREEN_700)
+                else:
+                    set_status(f"Всі дані оновлено о {current_time}", ft.Colors.GREEN_700)
+            elif any(results):
+                set_status(f"Частково завантажено о {current_time}", ft.Colors.ORANGE_ACCENT_700)
+            else:
+                set_status("Не вдалося отримати дані", ft.Colors.RED_ACCENT_700)
+
+            page.update()
+
+    async def refresh(e):
+        if not _lock.locked():
+            await load_all(force=True)
+
+    page.run_task(load_all)
 
     return ft.Column(
         controls=[
-            ft.Container( 
+            ft.Container(
+                padding=ft.Padding.only(top=5, bottom=10),
                 content=ft.Row(
                     controls=[
-                        update_status_text,
-                        ft.IconButton(icon=ft.Icons.REFRESH, on_click=refresh_data, tooltip="Оновити")
+                        status,
+                        ft.IconButton(icon=ft.Icons.REFRESH, on_click=refresh, tooltip="Оновити"),
                     ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 ),
-                padding=ft.Padding(0, 5, 0, 10)
             ),
-            ft.ExpansionTile(
-                title=ft.Text("Розклад занять", weight="bold"),
-                controls=[schedule_container]
+            *(
+                ft.ExpansionTile(
+                    title=ft.Text(title, weight=ft.FontWeight.BOLD),
+                    controls=[bodies[key]],
+                )
+                for key, title, _ in sections
             ),
-            ft.ExpansionTile(
-                title=ft.Text("Рейтинги студентів", weight="bold"),
-                controls=[rating_container]
-            ),
-            ft.ExpansionTile(
-                title=ft.Text("Розклад іспитів", weight="bold"),
-                controls=[ispyt_container]
-            )
         ],
         scroll=ft.ScrollMode.AUTO,
-        expand=True
+        expand=True,
     )

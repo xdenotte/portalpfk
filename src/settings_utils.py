@@ -1,16 +1,30 @@
 import json
 import os
 
+DEFAULT_SETTINGS = {"theme_mode": "Системна"}
 SETTINGS_FILE = "settings.json"
 
-# Функція для завантаження налаштувань
-def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, "r") as file:
-            return json.load(file)
-    return {"theme_mode": "Системна"}  # Значення за замовчуванням
 
-# Функція для збереження налаштувань
-def save_settings(settings):
-    with open(SETTINGS_FILE, "w") as file:
-        json.dump(settings, file)
+def _settings_path() -> str:
+    base_dir = os.environ.get("FLET_APP_STORAGE_DATA") or os.path.expanduser("~")
+    return os.path.join(base_dir, SETTINGS_FILE)
+
+
+def load_settings() -> dict:
+    path = _settings_path()
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return dict(DEFAULT_SETTINGS)
+
+    return {**DEFAULT_SETTINGS, **data}
+
+
+def save_settings(settings: dict) -> None:
+    path = _settings_path()
+    try:
+        with open(path, "w", encoding="utf-8") as file:
+            json.dump(settings, file, ensure_ascii=False, indent=2)
+    except OSError as e:
+        print(f"[ERROR] Не вдалося зберегти налаштування: {e}")
